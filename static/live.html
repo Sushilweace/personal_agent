@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__ASSISTANT_NAME__ · Live voice</title>
+<style>
+  :root { --bg:#0b1020; --panel:#141b30; --line:#232c47; --text:#e8ecf8; --dim:#8a94b4; --accent:#6c8cff; --good:#4ade80; --warn:#fbbf24; --bad:#f87171; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.5 system-ui,"Segoe UI",Roboto,sans-serif; min-height:100vh; display:flex; flex-direction:column; align-items:center; }
+  header { width:100%; max-width:760px; display:flex; justify-content:space-between; align-items:center; padding:18px 20px 0; }
+  header h1 { font-size:20px; margin:0; }
+  header a { color:var(--dim); text-decoration:none; font-size:14px; }
+  header a:hover { color:var(--text); }
+  main { width:100%; max-width:760px; padding:10px 20px 40px; display:flex; flex-direction:column; align-items:center; gap:14px; }
+  #orbwrap { position:relative; width:170px; height:170px; margin-top:10px; display:grid; place-items:center; }
+  #orb { width:110px; height:110px; border-radius:50%; background:radial-gradient(circle at 35% 30%, #9fb3ff, #4f6bff 60%, #2a3a9c);
+         transform:scale(calc(1 + var(--level,0) * .45)); transition:transform .08s linear, filter .3s, background .3s; box-shadow:0 0 40px rgba(108,140,255,.45); }
+  #orb.idle { filter:grayscale(1) brightness(.5); box-shadow:none; }
+  #orb.recording { background:radial-gradient(circle at 35% 30%, #b6ffd2, #28c76f 60%, #12703c); box-shadow:0 0 50px rgba(74,222,128,.55); }
+  #orb.processing, #orb.thinking { animation:pulse 1.1s ease-in-out infinite; background:radial-gradient(circle at 35% 30%, #ffe9a8, #f5a524 60%, #8a5a07); box-shadow:0 0 45px rgba(251,191,36,.5); }
+  #orb.speaking { animation:pulse .7s ease-in-out infinite; background:radial-gradient(circle at 35% 30%, #e0c6ff, #a05bff 60%, #5a23a8); box-shadow:0 0 50px rgba(160,91,255,.55); }
+  @keyframes pulse { 0%,100% { transform:scale(1); } 50% { transform:scale(1.14); } }
+  #status { color:var(--dim); min-height:1.5em; text-align:center; }
+  #timing { color:var(--dim); font-size:12px; min-height:1.2em; }
+  button { font:inherit; color:var(--text); background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:10px 18px; cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#0b1020; font-weight:600; padding:12px 26px; }
+  button.stop { background:var(--bad); border-color:var(--bad); color:#1b0707; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+  #log { width:100%; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:12px; min-height:200px; max-height:46vh; overflow-y:auto; display:flex; flex-direction:column; gap:8px; }
+  .msg { padding:8px 12px; border-radius:12px; max-width:88%; white-space:pre-wrap; word-wrap:break-word; }
+  .msg.user { align-self:flex-end; background:#243258; }
+  .msg.assistant { align-self:flex-start; background:#1d2540; border:1px solid var(--line); }
+  .msg small { color:var(--dim); }
+  .note { color:var(--dim); font-size:13px; align-self:center; text-align:center; }
+  .note.err { color:var(--bad); }
+  .note.warn { color:var(--warn); }
+  details { width:100%; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:8px 14px; color:var(--dim); font-size:14px; }
+  details label { display:flex; align-items:center; gap:10px; margin:8px 0; flex-wrap:wrap; }
+  select { background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:5px 8px; font:inherit; max-width:100%; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🪄 __ASSISTANT_NAME__ <span style="color:var(--dim);font-weight:400">· live voice</span></h1>
+  <span><a href="/connections">Connections</a> &nbsp; <a href="/">Text chat →</a> &nbsp; <a href="#" id="quit" title="Stop the assistant">⏻ Quit</a></span>
+</header>
+<main>
+  <div id="orbwrap"><div id="orb" class="idle"></div></div>
+  <div id="status">Press <b>Start</b>, then just talk. No buttons needed afterwards.</div>
+  <div id="timing"></div>
+  <div class="row">
+    <button id="toggle" class="primary">🎙️ Start conversation</button>
+    <button id="newchat">🗑️ New chat</button>
+  </div>
+  <div id="log"><div class="note">Say anything in English, Hindi or another language. <span id="hint"></span></div></div>
+  <details>
+    <summary>Settings</summary>
+    <label>Speech recognition
+      <select id="sttModel">
+        <option value="base">Fast (base) - about 1-2 s</option>
+        <option value="small">Accurate (small) - better Hindi, slower</option>
+      </select>
+    </label>
+    <label><input type="checkbox" id="interrupt"> Let me interrupt while it talks (use headphones, otherwise it hears itself)</label>
+    <label><input type="checkbox" id="wakeOnly"> Only respond when I say “__ASSISTANT_NAME__”</label>
+    <label><input type="checkbox" id="showResults"> Show raw tool results in the chat (off = only the answer)</label>
+    <label>Voice
+      <select id="ttsEngine">
+        <option value="neural">Indian neural voices (best quality, online)</option>
+        <option value="browser">Browser voices (instant, offline)</option>
+      </select>
+    </label>
+    <label id="genderRow">Voice type
+      <select id="ttsGender"><option value="female">Female</option><option value="male">Male</option></select>
+    </label>
+    <div id="browserVoices">
+      <label>English voice <select id="voiceEn"></select></label>
+      <label>Hindi voice <select id="voiceHi"></select></label>
+      <div id="voiceNote"></div>
+    </div>
+  </details>
+</main>
+
+<script>
+"use strict";
+const CONFIG = __CONFIG__;
+const NAME = CONFIG.name;
+const RATE = 16000, BLOCK = 1024;                 // VAD works on 64 ms blocks at 16 kHz
+const BLOCK_SEC = BLOCK / RATE;
+const SILENCE_BLOCKS = Math.round((CONFIG.silenceMs / 1000) / BLOCK_SEC);
+const PREROLL_BLOCKS = 5, START_BLOCKS = 3, BARGE_BLOCKS = 8;
+const MIN_VOICED = 0.3, MAX_UTTERANCE = 20;       // seconds
+const MIN_THRESHOLD = 0.012;
+const HEAD_JSON = {"Content-Type":"application/json", "X-Live-Client":"1"};
+const HEAD_BIN  = {"Content-Type":"application/octet-stream", "X-Live-Client":"1"};
+
+const $ = id => document.getElementById(id);
+const orb = $("orb"), statusEl = $("status"), logEl = $("log"), timingEl = $("timing");
+const toggleBtn = $("toggle"), sttModel = $("sttModel"), interruptBox = $("interrupt"), wakeBox = $("wakeOnly");
+
+// ---------- settings (remembered in this browser) ----------
+const store = {
+  get: (k, d) => { try { const v = localStorage.getItem("live." + k); return v === null ? d : v; } catch { return d; } },
+  set: (k, v) => { try { localStorage.setItem("live." + k, v); } catch {} },
+};
+sttModel.value = store.get("model", CONFIG.model); if (!sttModel.value) sttModel.value = "base";
+interruptBox.checked = store.get("interrupt", "0") === "1";
+wakeBox.checked = store.get("wake", "0") === "1";
+sttModel.onchange = () => store.set("model", sttModel.value);
+interruptBox.onchange = () => store.set("interrupt", interruptBox.checked ? "1" : "0");
+wakeBox.onchange = () => store.set("wake", wakeBox.checked ? "1" : "0");
+const resultsBox = $("showResults");
+resultsBox.checked = store.get("results", "0") === "1";
+resultsBox.onchange = () => store.set("results", resultsBox.checked ? "1" : "0");
+const ttsEngine = $("ttsEngine"), ttsGender = $("ttsGender");
+ttsEngine.value = store.get("engine", "neural"); if (!ttsEngine.value) ttsEngine.value = "neural";
+ttsGender.value = store.get("gender", "female"); if (!ttsGender.value) ttsGender.value = "female";
+function syncVoiceControls() {
+  const neural = ttsEngine.value === "neural";
+  $("genderRow").style.display = neural ? "" : "none";
+  $("browserVoices").style.display = neural ? "none" : "";
+}
+ttsEngine.onchange = () => { store.set("engine", ttsEngine.value); syncVoiceControls(); };
+ttsGender.onchange = () => store.set("gender", ttsGender.value);
+syncVoiceControls();
+
+// ---------- state ----------
+let state = "idle";           // idle | listening | recording | processing | thinking | speaking
+let active = false;
+let threadId = newThread();
+let ctx = null, stream = null, node = null;
+let carry = new Float32Array(0);
+let noise = 0.004, loudRun = 0, cooldownUntil = 0;
+let preRoll = [], rec = [], recSamples = 0, silentSamples = 0;
+let abortCtl = null, turn = null, lastLang = "en";
+
+function newThread() { return "live-" + (crypto.randomUUID ? crypto.randomUUID().replace(/-/g, "").slice(0, 16) : Math.random().toString(36).slice(2, 18)); }
+
+const STATUS = {
+  idle: "Press Start, then just talk. No buttons needed afterwards.",
+  listening: "Listening… just talk",
+  recording: "Hearing you…",
+  processing: "Understanding…",
+  thinking: "Thinking…",
+  speaking: () => interruptBox.checked ? "Speaking… (talk to interrupt)" : "Speaking…",
+};
+function setState(s) {
+  state = s;
+  orb.className = s === "listening" ? "" : s;
+  const t = STATUS[s];
+  statusEl.textContent = typeof t === "function" ? t() : t;
+  if (s !== "recording" && s !== "listening" && s !== "speaking") orb.style.setProperty("--level", 0);
+}
+
+// ---------- log ----------
+function addMsg(role, text, lang) {
+  const d = document.createElement("div");
+  d.className = "msg " + role;
+  d.textContent = text;
+  if (lang) { const s = document.createElement("small"); s.textContent = "  (" + lang + ")"; d.appendChild(s); }
+  logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight;
+  return d;
+}
+function addNote(text, cls) {
+  const d = document.createElement("div");
+  d.className = "note " + (cls || ""); d.textContent = text;
+  logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight;
+}
+function appendText(el, text) { el.firstChild && el.firstChild.nodeType === 3 ? el.firstChild.nodeValue += text : el.insertBefore(document.createTextNode(text), el.firstChild); logEl.scrollTop = logEl.scrollHeight; }
+
+// ---------- text to speech (browser voices) ----------
+let voices = [], pending = 0, speechEpoch = 0;
+const warned = new Set();
+const SCRIPTS = [[/[\u0900-\u097F]/g, "hi"], [/[\u0B80-\u0BFF]/g, "ta"], [/[\u0980-\u09FF]/g, "bn"], [/[\u0C00-\u0C7F]/g, "te"],
+                 [/[\u0A80-\u0AFF]/g, "gu"], [/[\u0C80-\u0CFF]/g, "kn"], [/[\u0D00-\u0D7F]/g, "ml"], [/[\u0A00-\u0A7F]/g, "pa"], [/[\u0600-\u06FF]/g, "ur"]];
+const LATIN = new Set(["en", "es", "fr", "de", "it", "pt", "nl", "tr", "id", "pl", "sv"]);
+function sentenceLang(text) {
+  for (const [re, code] of SCRIPTS) { const m = text.match(re); if (m && m.length >= Math.max(2, text.length * 0.2)) return code; }
+  return LATIN.has(lastLang) ? lastLang : "en";
+}
+function loadVoices() {
+  voices = speechSynthesis.getVoices();
+  fillVoiceSelect($("voiceEn"), "en"); fillVoiceSelect($("voiceHi"), "hi");
+  const hasHi = voices.some(v => v.lang.toLowerCase().startsWith("hi"));
+  $("voiceNote").textContent = hasHi ? "" : "No Hindi voice found in this browser: Hindi replies will show as text only. Edge/Chrome usually offer one (online); or install Hindi speech in Windows Settings → Time & language → Speech.";
+}
+function fillVoiceSelect(sel, prefix) {
+  const saved = store.get("voice." + prefix, "");
+  sel.innerHTML = "";
+  const auto = new Option("Automatic", ""); sel.add(auto);
+  voices.filter(v => v.lang.toLowerCase().startsWith(prefix)).forEach(v =>
+    sel.add(new Option(v.name + (v.localService ? "" : " (online)"), v.name)));
+  sel.value = saved; if (sel.value !== saved) sel.value = "";
+  sel.onchange = () => store.set("voice." + prefix, sel.value);
+}
+function pickVoice(lang) {
+  const prefix = lang.toLowerCase().slice(0, 2);
+  const chosen = ($(prefix === "hi" ? "voiceHi" : "voiceEn") || {}).value;
+  const matches = voices.filter(v => v.lang.toLowerCase().startsWith(prefix));
+  return matches.find(v => v.name === chosen) || matches.find(v => v.localService) || matches[0] || null;
+}
+// Browser voices: instant and offline. Resolves when the sentence has been spoken (or skipped).
+function speakBrowser(text, lang) {
+  return new Promise(resolve => {
+    if (!("speechSynthesis" in window)) return resolve();
+    const u = new SpeechSynthesisUtterance(text);
+    const v = pickVoice(lang);
+    if (v) { u.voice = v; u.lang = v.lang; }
+    else if (lang === "en") { u.lang = "en-US"; }                     // default voice is fine for English
+    else {                                                            // other languages need a real voice, or it is read as gibberish
+      if (!warned.has(lang)) { warned.add(lang); addNote("No “" + lang + "” voice installed in this browser, so I can only show those replies as text.", "warn"); }
+      return resolve();
+    }
+    u.rate = 1.05;
+    u.onstart = markAudioStart;
+    u.onend = u.onerror = () => resolve();
+    speechSynthesis.speak(u);
+  });
+}
+
+// Indian neural voices (served by /api/tts): each sentence is fetched at once, played in order.
+const ttsQueue = [];
+let ttsPumping = false, currentAudio = null, currentStop = null, neuralWarned = false;
+async function fetchNeural(text, lang) {
+  const r = await fetch("/api/tts", { method: "POST", headers: HEAD_JSON, body: JSON.stringify({ text, lang, gender: ttsGender.value }) });
+  if (!r.ok) {
+    const detail = await errText(r);
+    throw new Error(r.status === 404 && detail === "Not Found"
+      ? "the server is an older version: stop it with Ctrl+C and run python web.py again" : detail);
+  }
+  return await r.blob();
+}
+function playBlob(blob) {
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(blob), a = new Audio(url);
+    currentAudio = a;
+    const finish = () => { URL.revokeObjectURL(url); if (currentAudio === a) currentAudio = null; currentStop = null; resolve(); };
+    currentStop = finish;
+    a.onplaying = markAudioStart; a.onended = finish; a.onerror = finish;
+    a.play().catch(finish);
+  });
+}
+async function pumpNeural() {
+  if (ttsPumping) return;
+  ttsPumping = true;
+  while (ttsQueue.length) {
+    const item = ttsQueue.shift();
+    if (item.epoch !== speechEpoch) continue;                          // interrupted: drop
+    const blob = await item.audio;
+    if (item.epoch !== speechEpoch) continue;
+    if (blob) await playBlob(blob); else await speakBrowser(item.text, item.lang);   // service down: fall back to browser voice
+    if (item.epoch === speechEpoch) pending = Math.max(0, pending - 1);
+  }
+  ttsPumping = false;
+  maybeFinish();
+}
+function speakNeural(text, lang) {
+  const audio = fetchNeural(text, lang).catch(e => {
+    if (!neuralWarned) { neuralWarned = true; addNote("Indian voice service unavailable (" + e.message + "): using browser voices instead.", "warn"); }
+    return null;
+  });
+  pending++;
+  ttsQueue.push({ audio, text, lang, epoch: speechEpoch });
+  pumpNeural();
+}
+
+function speak(text, lang) {
+  if (ttsEngine.value === "neural") return speakNeural(text, lang);
+  const epoch = speechEpoch;
+  pending++;
+  speakBrowser(text, lang).then(() => { if (epoch !== speechEpoch) return; pending = Math.max(0, pending - 1); maybeFinish(); });
+}
+function stopSpeaking() {
+  speechEpoch++; pending = 0; ttsQueue.length = 0;
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+  if (currentAudio) currentAudio.pause();
+  if (currentStop) currentStop();
+}
+
+// Shows how long it took from the end of your sentence to the first audible word.
+let turnTiming = null;
+function markAudioStart() {
+  if (!turnTiming || turnTiming.shown) return;
+  turnTiming.shown = true;
+  timingEl.textContent = "you stopped talking → first voice after " + ((performance.now() - turnTiming.t0) / 1000).toFixed(1) + " s"
+    + " (recognition " + (turnTiming.sttMs / 1000).toFixed(1) + " s)";
+}
+if ("speechSynthesis" in window) { loadVoices(); speechSynthesis.onvoiceschanged = loadVoices; }
+else addNote("This browser has no speech synthesis; replies will be shown as text only.", "warn");
+
+// ---------- audio capture + voice activity detection ----------
+const WORKLET = `class Tap extends AudioWorkletProcessor {
+  constructor(){ super(); this.buf = new Float32Array(1024); this.n = 0; }
+  process(inputs){ const ch = inputs[0][0]; if (!ch) return true;
+    for (let i = 0; i < ch.length; i++) { this.buf[this.n++] = ch[i];
+      if (this.n === 1024) { this.port.postMessage(this.buf.slice(0)); this.n = 0; } }
+    return true; } }
+registerProcessor("tap", Tap);`;
+
+function resample(input, inRate) {
+  if (inRate === RATE) return input;
+  const ratio = inRate / RATE, n = Math.floor(input.length / ratio), out = new Float32Array(n);
+  for (let i = 0; i < n; i++) { const p = i * ratio, j = Math.floor(p), f = p - j; const a = input[j], b = input[Math.min(j + 1, input.length - 1)]; out[i] = a + (b - a) * f; }
+  return out;
+}
+function onAudio(chunk) {
+  if (!ctx || !active) return;
+  const x = resample(chunk, ctx.sampleRate);
+  const merged = new Float32Array(carry.length + x.length); merged.set(carry); merged.set(x, carry.length);
+  let off = 0;
+  while (merged.length - off >= BLOCK) { onBlock(merged.slice(off, off + BLOCK)); off += BLOCK; }
+  carry = merged.slice(off);
+}
+function rmsOf(b) { let s = 0; for (let i = 0; i < b.length; i++) s += b[i] * b[i]; return Math.sqrt(s / b.length); }
+
+function onBlock(b) {
+  if (!active) return;
+  const rms = rmsOf(b);
+  const speaking = state === "speaking";
+  const thr = Math.max(MIN_THRESHOLD, noise * 3) * (speaking ? 2 : 1);
+  const loud = rms > thr;
+  if (state === "listening" && !loud) noise = Math.min(0.05, noise * 0.9 + rms * 0.1);
+  if (state === "listening" || state === "recording") orb.style.setProperty("--level", Math.min(1, rms * 10));
+
+  preRoll.push(b); if (preRoll.length > PREROLL_BLOCKS) preRoll.shift();
+
+  if (state === "recording") {
+    rec.push(b); recSamples += b.length;
+    if (loud) silentSamples = 0; else silentSamples += b.length;
+    if (silentSamples >= SILENCE_BLOCKS * BLOCK || recSamples >= MAX_UTTERANCE * RATE) finishUtterance();
+    return;
+  }
+  const canTrigger = state === "listening" || (speaking && interruptBox.checked);
+  if (!canTrigger || performance.now() < cooldownUntil) { loudRun = 0; return; }
+  loudRun = loud ? loudRun + 1 : 0;
+  if (loudRun >= (speaking ? BARGE_BLOCKS : START_BLOCKS)) {
+    if (speaking) interruptTurn();
+    beginRecording();
+  }
+}
+function beginRecording() {
+  setState("recording");
+  rec = preRoll.slice(); recSamples = rec.length * BLOCK; silentSamples = 0; loudRun = 0;
+}
+function finishUtterance() {
+  const voiced = recSamples - silentSamples;
+  const keep = recSamples - Math.max(0, silentSamples - Math.round(0.3 * RATE));   // keep 0.3 s of tail
+  const all = new Float32Array(recSamples); let o = 0; for (const b of rec) { all.set(b, o); o += b.length; }
+  rec = []; recSamples = 0; silentSamples = 0;
+  if (voiced < MIN_VOICED * RATE) { backToListening(); return; }                   // a click or cough
+  const pcm = new Int16Array(keep);
+  for (let i = 0; i < keep; i++) { const s = Math.max(-1, Math.min(1, all[i])); pcm[i] = s < 0 ? s * 0x8000 : s * 0x7fff; }
+  runTurn(pcm);
+}
+function backToListening() {
+  if (!active) return;
+  loudRun = 0; preRoll = []; carry = new Float32Array(0);
+  cooldownUntil = performance.now() + 350;   // ignore the tail of our own voice
+  setState("listening");
+}
+
+// ---------- one conversational turn ----------
+function interruptTurn() {
+  stopSpeaking();
+  if (abortCtl) abortCtl.abort();
+  turn = null;
+}
+async function errText(r) { try { const j = await r.json(); return j.detail || r.statusText; } catch { return r.statusText; } }
+
+async function runTurn(pcm) {
+  const me = { done: false, aborted: false };
+  turn = me;
+  abortCtl = new AbortController();
+  const signal = abortCtl.signal;
+  setState("processing");
+  timingEl.textContent = "";
+  turnTiming = { t0: performance.now(), sttMs: 0, shown: false };
+
+  let stt;
+  try {
+    const r = await fetch("/api/stt?model=" + encodeURIComponent(sttModel.value), { method: "POST", headers: HEAD_BIN, body: pcm, signal });
+    if (!r.ok) throw new Error(await errText(r));
+    stt = await r.json();
+  } catch (e) {
+    if (e.name === "AbortError" || turn !== me) return;
+    addNote("Speech recognition failed: " + e.message, "err"); backToListening(); return;
+  }
+  if (turn !== me) return;
+  const text = (stt.text || "").trim();
+  if (!text) { backToListening(); return; }
+  if (wakeBox.checked && !stt.wake) { addNote("ignored (no “" + NAME + "”): " + text); backToListening(); return; }
+
+  lastLang = stt.language || lastLang;
+  if (turnTiming) turnTiming.sttMs = stt.ms || 0;
+  addMsg("user", text, stt.language);
+  setState("thinking");
+  const bubble = addMsg("assistant", "");
+  const t0 = performance.now();
+  let firstAt = null;
+  try {
+    const r = await fetch("/api/live-chat", { method: "POST", headers: HEAD_JSON, body: JSON.stringify({ text, thread_id: threadId }), signal });
+    if (!r.ok || !r.body) throw new Error(await errText(r));
+    const reader = r.body.getReader(), dec = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (turn !== me) return;
+      buf += dec.decode(value, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1);
+        if (!line) continue;
+        const ev = JSON.parse(line);
+        if (ev.type === "sentence" || ev.type === "error") {
+          const shown = ev.text;
+          appendText(bubble, (bubble.textContent ? " " : "") + shown);
+          if (firstAt === null) { firstAt = performance.now() - t0; setState("speaking"); }
+          speak(ev.speak || ev.text, sentenceLang(ev.speak || ev.text));
+        } else if (ev.type === "tool") {
+          addNote("🔧 " + ev.name + "(" + ev.args + ")");
+        } else if (ev.type === "tool_result") {
+          if (resultsBox.checked) addNote("↳ " + ev.text);
+        }
+      }
+    }
+  } catch (e) {
+    if (e.name === "AbortError" || turn !== me) return;
+    addNote("Chat failed: " + e.message, "err");
+  }
+  if (turn !== me) return;
+  me.done = true;
+  if (!bubble.textContent) bubble.remove();
+  maybeFinish();
+}
+function maybeFinish() {
+  if (turn && turn.done && pending === 0 && active) { turn = null; backToListening(); }
+}
+
+// ---------- session start / stop ----------
+async function start() {
+  toggleBtn.disabled = true;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+  } catch (e) {
+    addNote("Microphone unavailable: " + e.message + ". Allow microphone access for this site and try again.", "err");
+    toggleBtn.disabled = false; return;
+  }
+  try { ctx = new AudioContext({ sampleRate: RATE }); } catch { ctx = new AudioContext(); }
+  await ctx.resume();
+  const url = URL.createObjectURL(new Blob([WORKLET], { type: "application/javascript" }));
+  await ctx.audioWorklet.addModule(url);
+  const src = ctx.createMediaStreamSource(stream);
+  node = new AudioWorkletNode(ctx, "tap");
+  node.port.onmessage = e => onAudio(e.data);
+  const mute = ctx.createGain(); mute.gain.value = 0;
+  src.connect(node); node.connect(mute); mute.connect(ctx.destination);
+  if ("speechSynthesis" in window) speechSynthesis.speak(new SpeechSynthesisUtterance(""));   // unlock speech (browser autoplay rule)
+  active = true; noise = 0.004; carry = new Float32Array(0);
+  toggleBtn.textContent = "⏹ Stop"; toggleBtn.classList.add("stop"); toggleBtn.disabled = false;
+  backToListening();
+}
+function stop() {
+  active = false;
+  interruptTurn();
+  if (node) { node.disconnect(); node = null; }
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  if (ctx) { ctx.close(); ctx = null; }
+  rec = []; preRoll = [];
+  toggleBtn.textContent = "🎙️ Start conversation"; toggleBtn.classList.remove("stop");
+  setState("idle");
+}
+toggleBtn.onclick = () => (active ? stop() : start());
+$("quit").onclick = async ev => {
+  ev.preventDefault();
+  if (!confirm("Quit " + NAME + "? Voice and chat will stop.")) return;
+  if (active) stop();
+  try { await fetch("/api/quit", { method: "POST", headers: HEAD_JSON }); } catch {}
+  const bye = document.createElement("p");
+  bye.textContent = NAME + " has stopped. You can close this window. Start it again from the Jadu shortcut.";
+  bye.style.cssText = "margin:40px 20px;text-align:center;color:#8a94b4";
+  document.body.replaceChildren(bye);
+};
+$("newchat").onclick = () => {
+  const was = active; if (was) stop();
+  threadId = newThread(); logEl.innerHTML = ""; addNote("New conversation."); timingEl.textContent = "";
+};
+window.addEventListener("beforeunload", () => { try { speechSynthesis.cancel(); } catch {} });
+$("hint").textContent = "Say “" + NAME + "” first only if you turned on that setting.";
+</script>
+</body>
+</html>

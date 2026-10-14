@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__ASSISTANT_NAME__ · Connections</title>
+<style>
+  :root { --bg:#0b1020; --panel:#141b30; --line:#232c47; --text:#e8ecf8; --dim:#8a94b4; --accent:#6c8cff; --good:#4ade80; --warn:#fbbf24; --bad:#f87171; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.5 system-ui,"Segoe UI",Roboto,sans-serif; display:flex; flex-direction:column; align-items:center; }
+  header { width:100%; max-width:900px; display:flex; justify-content:space-between; align-items:center; padding:18px 20px 0; flex-wrap:wrap; gap:8px; }
+  header h1 { font-size:20px; margin:0; }
+  header nav a { color:var(--dim); text-decoration:none; font-size:14px; margin-left:14px; }
+  header nav a:hover { color:var(--text); }
+  main { width:100%; max-width:900px; padding:10px 20px 50px; display:flex; flex-direction:column; gap:22px; }
+  h2 { font-size:16px; margin:6px 0 2px; }
+  .sub { color:var(--dim); font-size:14px; margin:0 0 8px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:14px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:16px; display:flex; flex-direction:column; gap:10px; }
+  .card h3 { margin:0; font-size:17px; display:flex; align-items:center; gap:8px; }
+  .card p { margin:0; color:var(--dim); font-size:14px; }
+  .pill { font-size:12px; padding:2px 9px; border-radius:99px; border:1px solid var(--line); color:var(--dim); white-space:nowrap; }
+  .pill.good { color:var(--good); border-color:var(--good); }
+  .pill.warn { color:var(--warn); border-color:var(--warn); }
+  .pill.bad { color:var(--bad); border-color:var(--bad); }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  button, .btn { font:inherit; font-size:14px; color:var(--text); background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:8px 14px; cursor:pointer; text-decoration:none; display:inline-block; }
+  button:hover, .btn:hover { border-color:var(--accent); }
+  button:disabled { opacity:.5; cursor:default; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#0b1020; font-weight:600; }
+  button.danger:hover { border-color:var(--bad); color:var(--bad); }
+  details { background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:8px 12px; font-size:14px; color:var(--dim); }
+  details ol { margin:8px 0 4px; padding-left:20px; }
+  details li { margin:4px 0; }
+  a { color:var(--accent); }
+  textarea { width:100%; min-height:300px; background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:12px; padding:12px; font:14px/1.5 Consolas,"Courier New",monospace; resize:vertical; }
+  select { background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:7px 8px; font:inherit; font-size:14px; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:13px; color:var(--dim); }
+  .chip { background:#1d2540; border:1px solid var(--line); border-radius:99px; padding:1px 10px; color:var(--text); }
+  .chip.avoid { border-color:#6b2c2c; color:#fca5a5; }
+  #msg { min-height:1.4em; font-size:14px; color:var(--dim); }
+  #msg.err { color:var(--bad); } #msg.ok { color:var(--good); }
+  .job { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:12px 14px; display:flex; flex-direction:column; gap:4px; }
+  .job .top { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .job .title { font-weight:600; }
+  .score { font-size:12px; font-weight:700; padding:2px 9px; border-radius:99px; color:#0b1020; }
+  .score.strong { background:var(--good); } .score.good { background:var(--accent); } .score.possible { background:var(--warn); }
+  .job small { color:var(--dim); }
+  #summary { color:var(--dim); font-size:14px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🪄 __ASSISTANT_NAME__ <span style="color:var(--dim);font-weight:400">· connections</span></h1>
+  <nav><a href="/live">Live voice</a><a href="/">Text chat</a><a href="#" id="quit" title="Stop the assistant">⏻ Quit</a></nav>
+</header>
+<main>
+  <section>
+    <h2>Platforms</h2>
+    <p class="sub">Connect an account once; then just ask __ASSISTANT_NAME__ in chat or by voice, or use the buttons below.</p>
+    <div class="grid">
+      <div class="card" id="gmailCard">
+        <h3>📧 Gmail <span class="pill" id="gmailPill">…</span></h3>
+        <p id="gmailText">Checking…</p>
+        <div id="gmailSetup" hidden>
+          <details>
+            <summary>How to get the Google client file (one time, ~10 min)</summary>
+            <ol>
+              <li>Open <a href="https://console.cloud.google.com/projectcreate" target="_blank" rel="noopener noreferrer">Google Cloud</a> and create a project.</li>
+              <li>Enable the <a href="https://console.cloud.google.com/apis/library/gmail.googleapis.com" target="_blank" rel="noopener noreferrer">Gmail API</a>.</li>
+              <li>Set up the OAuth consent screen: type <b>External</b>, add your Gmail under <b>Test users</b>.</li>
+              <li>Credentials → Create credentials → <b>OAuth client ID</b> → <b>Desktop app</b> → download the JSON.</li>
+              <li>Choose that file below.</li>
+            </ol>
+          </details>
+          <div class="row" style="margin-top:8px"><input type="file" id="clientFile" accept=".json,application/json"></div>
+        </div>
+        <div class="row" id="gmailButtons"></div>
+      </div>
+
+      <div class="card" id="linkedinCard">
+        <h3>💼 LinkedIn <span class="pill" id="linkedinPill">…</span></h3>
+        <p>Connected through LinkedIn's job-alert emails (no password, no automation). Turn on email alerts for your saved searches.</p>
+        <p id="linkedinCount"></p>
+        <div class="row"><a class="btn" href="https://www.linkedin.com/jobs/" target="_blank" rel="noopener noreferrer">Open LinkedIn Jobs</a></div>
+      </div>
+
+      <div class="card" id="naukriCard">
+        <h3>🧑‍💻 Naukri <span class="pill" id="naukriPill">…</span></h3>
+        <p>Connected through Naukri's job-alert emails (no password, no automation). Create job alerts for your searches.</p>
+        <p id="naukriCount"></p>
+        <div class="row"><a class="btn" href="https://www.naukri.com/" target="_blank" rel="noopener noreferrer">Open Naukri</a></div>
+      </div>
+    </div>
+    <p class="sub" style="margin-top:10px">Why not log in to LinkedIn/Naukri directly? They have no public API for personal accounts. Automating a login would need your passwords and breaks their terms, which can get your account restricted. Alert emails give the same jobs safely, and Gmail access here is <b>read-only</b>.</p>
+    <div id="msg"></div>
+  </section>
+
+  <section>
+    <h2>Your job requirements</h2>
+    <p class="sub">One item per line under each heading. Saved to <code id="profileFile">job_profile.md</code>.</p>
+    <textarea id="profileText" spellcheck="false" aria-label="Job requirements"></textarea>
+    <div class="row" style="margin-top:8px">
+      <button class="primary" id="saveProfile">Save requirements</button>
+      <span class="chips" id="profileChips"></span>
+    </div>
+  </section>
+
+  <section>
+    <h2>Find my best jobs</h2>
+    <p class="sub">Reads your recent job-alert emails and ranks them against the requirements above. Nothing is sent or applied.</p>
+    <div class="row">
+      <label>Look back <select id="days"><option value="3">3 days</option><option value="7" selected>7 days</option><option value="14">14 days</option><option value="30">30 days</option></select></label>
+      <button class="primary" id="runJobs">🔎 Find jobs</button>
+    </div>
+    <p id="summary"></p>
+    <div id="jobs" style="display:flex;flex-direction:column;gap:10px"></div>
+  </section>
+</main>
+
+<script>
+"use strict";
+const CONFIG = __CONFIG__;
+const HEAD = {"Content-Type":"application/json", "X-Live-Client":"1"};
+const $ = id => document.getElementById(id);
+
+function el(tag, attrs = {}, ...kids) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) node[k] = v;
+  for (const kid of kids) node.append(kid);
+  return node;
+}
+function say(text, kind = "") { const m = $("msg"); m.textContent = text; m.className = kind; }
+async function api(method, path, body) {
+  const res = await fetch(path, { method, headers: HEAD, body: body === undefined ? undefined : JSON.stringify(body) });
+  let data = {};
+  try { data = await res.json(); } catch {}
+  if (!res.ok) throw new Error(data.detail || ("Request failed (" + res.status + ")"));
+  return data;
+}
+function setPill(id, text, kind) { const p = $(id); p.textContent = text; p.className = "pill " + kind; }
+function safeUrl(u) { try { const x = new URL(u); return (x.protocol === "https:" || x.protocol === "http:") ? x.href : null; } catch { return null; } }
+
+// ---------- Gmail ----------
+let pollTimer = null;
+function button(label, onclick, cls = "") { const b = el("button", { textContent: label, className: cls }); b.onclick = onclick; return b; }
+
+async function refresh() {
+  let s;
+  try { s = (await api("GET", "/api/connections")).gmail; }
+  catch (e) { say(e.message, "err"); return; }
+  const waiting = s.signin.state === "waiting";
+  const box = $("gmailButtons"); box.replaceChildren();
+  $("gmailSetup").hidden = s.client_file || s.connected;
+
+  if (s.connected) {
+    setPill("gmailPill", "Connected", "good");
+    $("gmailText").textContent = (s.email ? s.email + " · " : "") + "read-only access to job-alert emails.";
+    box.append(button("Test", testGmail), button("Disconnect", disconnectGmail, "danger"));
+  } else if (waiting) {
+    setPill("gmailPill", "Signing in…", "warn");
+    $("gmailText").textContent = "Finish the sign-in in the Google window that opened in your browser.";
+  } else if (s.client_file) {
+    setPill("gmailPill", "Ready to connect", "warn");
+    $("gmailText").textContent = "Press Connect. Google's own page asks for read-only access; no password is shared with " + CONFIG.name + ".";
+    box.append(button("Connect Gmail", connectGmail, "primary"));
+    if (s.signin.state === "error") say(s.signin.message, "err");
+  } else {
+    setPill("gmailPill", "Not set up", "bad");
+    $("gmailText").textContent = "Needs a one-time Google client file (free).";
+  }
+  if (s.signin.state === "done" && s.connected && !waiting) say("Gmail connected" + (s.signin.message ? " as " + s.signin.message : "") + ".", "ok");
+
+  const via = s.connected ? ["Via Gmail alerts", "good"] : ["Needs Gmail", "warn"];
+  setPill("linkedinPill", ...via); setPill("naukriPill", ...via);
+
+  clearTimeout(pollTimer);
+  if (waiting) pollTimer = setTimeout(refresh, 2000);
+}
+
+async function connectGmail() {
+  say("Opening Google's sign-in page in your browser…");
+  try { await api("POST", "/api/connections/gmail/connect"); } catch (e) { say(e.message, "err"); return; }
+  refresh();
+}
+async function disconnectGmail() {
+  if (!confirm("Disconnect Gmail? " + CONFIG.name + " will stop reading job alerts.")) return;
+  try {
+    const r = await api("POST", "/api/connections/gmail/disconnect");
+    say(r.revoked ? "Disconnected and access revoked at Google." : "Disconnected locally. You can also remove access at myaccount.google.com/permissions.", "ok");
+  } catch (e) { say(e.message, "err"); }
+  refresh();
+}
+async function testGmail() {
+  say("Testing…");
+  try {
+    const r = await api("POST", "/api/connections/gmail/test");
+    say("Works: " + r.email + " · " + r.alerts + " job-alert email(s) in the last " + r.days + " days (up to 10 counted).", "ok");
+  } catch (e) { say(e.message, "err"); }
+  refresh();
+}
+$("clientFile").onchange = async ev => {
+  const file = ev.target.files[0]; if (!file) return;
+  if (file.size > 20000) { say("That file is too large to be a Google client file.", "err"); return; }
+  try {
+    await api("POST", "/api/connections/gmail/client", { content: await file.text() });
+    say("Client file saved. Now press Connect Gmail.", "ok");
+  } catch (e) { say(e.message, "err"); }
+  ev.target.value = "";
+  refresh();
+};
+
+// ---------- Requirements ----------
+function renderChips(sum) {
+  const box = $("profileChips"); box.replaceChildren();
+  const groups = [["Roles", sum.roles], ["Must", sum.must], ["Bonus", sum.nice], ["Where", sum.locations], ["Avoid", sum.avoid]];
+  for (const [label, items] of groups) {
+    if (!items.length) continue;
+    box.append(el("span", { textContent: label + ":" }));
+    for (const item of items) box.append(el("span", { textContent: item, className: "chip" + (label === "Avoid" ? " avoid" : "") }));
+  }
+  if (!box.children.length) box.textContent = "No criteria found yet: add bullet lines under the headings.";
+}
+async function loadProfile() {
+  try {
+    const p = await api("GET", "/api/connections/profile");
+    $("profileText").value = p.text; $("profileFile").textContent = p.file; renderChips(p.summary);
+  } catch (e) { say(e.message, "err"); }
+}
+$("saveProfile").onclick = async () => {
+  try {
+    const r = await api("PUT", "/api/connections/profile", { text: $("profileText").value });
+    renderChips(r.summary); say("Requirements saved.", "ok");
+  } catch (e) { say(e.message, "err"); }
+};
+
+// ---------- Job check ----------
+$("runJobs").onclick = async () => {
+  const btn = $("runJobs"); btn.disabled = true; btn.textContent = "Reading your alerts…";
+  $("jobs").replaceChildren(); $("summary").textContent = ""; say("");
+  try {
+    const r = await api("POST", "/api/connections/jobs", { days: Number($("days").value) });
+    $("summary").textContent = r.emails
+      ? r.emails + " alert email(s), " + r.total + " job(s) found, " + r.skipped + " skipped by your avoid list, " + r.weak + " weak match(es) hidden."
+      : "No job-alert emails from the last " + r.days + " days. Turn on email alerts on LinkedIn/Naukri first.";
+    for (const [site, n] of Object.entries(r.by_source)) {
+      const id = site.toLowerCase().startsWith("linkedin") ? "linkedinCount" : site.toLowerCase().startsWith("naukri") ? "naukriCount" : null;
+      if (id) $(id).textContent = n + " job(s) in your last check.";
+    }
+    for (const j of r.jobs) {
+      const url = safeUrl(j.url);
+      const title = url ? el("a", { textContent: j.title, href: url, target: "_blank", rel: "noopener noreferrer", className: "title" }) : el("span", { textContent: j.title, className: "title" });
+      $("jobs").append(el("div", { className: "job" },
+        el("div", { className: "top" }, el("span", { textContent: j.label + " " + j.score, className: "score " + j.label }), title, el("small", { textContent: j.source })),
+        el("small", { textContent: j.snippet }),
+        el("small", { textContent: "Why: " + j.reasons.join("; ") })));
+    }
+    if (r.emails && !r.jobs.length) $("jobs").append(el("div", { className: "note", textContent: "Nothing matched well. Try loosening your requirements." }));
+  } catch (e) { say(e.message, "err"); }
+  btn.disabled = false; btn.textContent = "🔎 Find jobs";
+};
+
+$("quit").onclick = async ev => {
+  ev.preventDefault();
+  if (!confirm("Quit " + CONFIG.name + "? Voice and chat will stop.")) return;
+  try { await api("POST", "/api/quit"); } catch {}
+  document.body.replaceChildren(el("p", { textContent: CONFIG.name + " has stopped. You can close this window. Start it again from the Jadu shortcut.", style: "margin:40px 20px;text-align:center;color:#8a94b4" }));
+};
+
+refresh(); loadProfile();
+</script>
+</body>
+</html>

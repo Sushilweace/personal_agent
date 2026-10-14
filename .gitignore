@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.env
+agent.log
+
+# Persistent vector store (keep the folder, ignore its contents)
+memory/*
+!memory/.gitkeep
+
+# Google sign-in files and personal job criteria (never commit)
+secrets/*
+!secrets/.gitkeep
+data/documents/job_profile.md
